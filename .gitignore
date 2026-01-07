@@ -10,3 +10,4 @@ node_modules/
 
 # Environment
 .env
+.git_backup/
