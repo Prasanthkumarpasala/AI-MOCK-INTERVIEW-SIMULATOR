@@ -85,12 +85,59 @@ function App() {
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '20px' }}>
         <div style={{ background: '#000', padding: '10px', borderRadius: '15px' }}>
-          <video ref={videoRef} autoPlay muted playsInline width="400" style={{ borderRadius: '10px' }} />
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            muted 
+            playsInline 
+            width="400" 
+            height="300"
+            style={{ borderRadius: '10px', display: 'block', backgroundColor: '#000' }} 
+            onLoadedMetadata={() => console.log("Video stream loaded successfully")}
+          />
           <br/>
           <button onClick={async () => {
-            const s = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-            videoRef.current.srcObject = s;
-          }} style={{ marginTop: '10px' }}>Activate Camera</button>
+            try {
+              const constraints = {
+                video: {
+                  width: { ideal: 400 },
+                  height: { ideal: 300 },
+                  facingMode: 'user'
+                },
+                audio: true
+              };
+              const s = await navigator.mediaDevices.getUserMedia(constraints);
+              
+              if (videoRef.current) {
+                videoRef.current.srcObject = s;
+                console.log("✓ Camera stream activated. Tracks:", s.getTracks().length);
+                console.log("✓ Video tracks:", s.getVideoTracks().length);
+              }
+            } catch (err) {
+              let errorMessage = "Failed to access camera: ";
+              if (err.name === "NotAllowedError") {
+                errorMessage += "Camera permission denied. Please allow camera access in browser settings.";
+              } else if (err.name === "NotFoundError") {
+                errorMessage += "No camera device found on this computer.";
+              } else if (err.name === "NotReadableError") {
+                errorMessage += "Camera is in use by another application. Close other apps using the camera.";
+              } else if (err.name === "OverconstrainedError") {
+                errorMessage += "Camera hardware doesn't support requested settings. Retrying with default settings...";
+                try {
+                  const s = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+                  videoRef.current.srcObject = s;
+                  console.log("✓ Camera activated with default settings");
+                  return;
+                } catch (e) {
+                  errorMessage = "Failed even with default settings: " + e.message;
+                }
+              } else {
+                errorMessage += err.message;
+              }
+              console.error("Camera Error:", err);
+              alert(errorMessage);
+            }
+          }} style={{ marginTop: '10px', padding: '10px 20px', backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Activate Camera</button>
         </div>
         <div style={{ width: '450px', border: '1px solid #ddd', padding: '30px', borderRadius: '15px' }}>
           <h3>Interview Question (Round {round})</h3>
