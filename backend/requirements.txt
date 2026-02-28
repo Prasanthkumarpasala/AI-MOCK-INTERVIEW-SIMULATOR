@@ -1,12 +1,10 @@
 fastapi
 uvicorn
 python-multipart
-google-generativeai
 groq
-pypdf
+PyPDF2
+gTTS
 python-dotenv
-langchain
-langchain-google-genai
 opencv-python
 mediapipe
 numpy
