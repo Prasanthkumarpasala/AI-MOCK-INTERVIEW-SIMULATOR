@@ -2,28 +2,29 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# 1. This finds the folder where this config.py is located
 current_file_path = Path(__file__).resolve()
-
-# 2. This goes up one level to the 'backend' folder
 backend_dir = current_file_path.parent.parent
-
-# 3. This points exactly to the .env file in the backend folder
 env_path = backend_dir / ".env"
-
-# 4. Load the file using the exact path
 load_dotenv(dotenv_path=env_path)
+
 
 class Settings:
     PROJECT_NAME: str = "AI Mock Interview Simulator"
-    # We use os.getenv to read the key after loading the file above
-    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY")
+    VERSION: str = "2.0.0"
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    SECRET_KEY: str = os.getenv(
+        "SECRET_KEY", "super-secret-key-change-in-production-32chars"
+    )
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    BASE_URL: str = os.getenv("BASE_URL", "http://localhost:8000")
+    DB_PATH: str = str(backend_dir / "interview_sim.db")
+    CHROMA_PATH: str = str(backend_dir / "chroma_db")
+
 
 settings = Settings()
 
-# --- Debugging Print ---
-# This will show in your terminal so we can see if it worked
-if hasattr(settings, "GROQ_API_KEY") and settings.GROQ_API_KEY:
-    print("✅ Success: Groq API Key loaded from .env")
+if settings.GROQ_API_KEY and settings.GROQ_API_KEY.startswith("gsk_"):
+    print("✅ Groq API Key loaded")
 else:
-    print(f"❌ Error: Groq API Key NOT FOUND at: {env_path}")
+    print(f"❌ Groq API Key NOT FOUND at: {env_path}")

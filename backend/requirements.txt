@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
 groq
 PyPDF2
@@ -8,3 +8,10 @@ python-dotenv
 opencv-python
 mediapipe
 numpy
+chromadb
+sentence-transformers
+reportlab
+python-jose[cryptography]
+bcrypt
+aiosqlite
+sqlalchemy
