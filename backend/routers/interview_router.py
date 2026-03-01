@@ -324,6 +324,30 @@ def get_interview(
     return dict(interview)
 
 
+# ─── Delete ───────────────────────────────────────────────────────────────────
+
+
+@router.delete("/{interview_id}")
+def delete_interview(
+    interview_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    interview = db.execute(
+        "SELECT * FROM interviews WHERE id = ? AND user_id = ?",
+        (interview_id, current_user["id"]),
+    ).fetchone()
+    if not interview:
+        raise HTTPException(404, "Interview not found")
+
+    # Delete messages, report, and interview record
+    db.execute("DELETE FROM interview_messages WHERE interview_id = ?", (interview_id,))
+    db.execute("DELETE FROM interview_reports WHERE interview_id = ?", (interview_id,))
+    db.execute("DELETE FROM interviews WHERE id = ?", (interview_id,))
+    db.commit()
+    return {"message": f"Interview #{interview_id} deleted successfully"}
+
+
 # ─── WebSocket Proctor ───────────────────────────────────────────────────────
 
 # Note: WebSocket is registered in main.py for flexibility

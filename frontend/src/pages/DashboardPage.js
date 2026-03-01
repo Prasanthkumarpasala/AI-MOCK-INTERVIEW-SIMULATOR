@@ -22,6 +22,17 @@ export default function DashboardPage({ user, onStartInterview, onViewReport, on
         }
     };
 
+    const deleteInterview = async (id) => {
+        if (!window.confirm(`Delete interview #${id}? This cannot be undone.`)) return;
+        try {
+            await axios.delete(`${API_BASE}/api/interview/${id}`, { headers: authHeaders() });
+            showToast(`Interview #${id} deleted`, 'success');
+            fetchHistory();
+        } catch (err) {
+            showToast(err.response?.data?.detail || 'Delete failed', 'error');
+        }
+    };
+
     const handleLogout = () => {
         clearAuth();
         onLogout();
@@ -170,16 +181,36 @@ export default function DashboardPage({ user, onStartInterview, onViewReport, on
                                             <td>{statusBadge(iv.status)}</td>
                                             <td>{formatDate(iv.created_at)}</td>
                                             <td>
-                                                {(iv.status === 'completed' || iv.status === 'terminated') && iv.report_id ? (
-                                                    <button className="btn btn-ghost btn-sm"
-                                                        onClick={() => onViewReport(iv.id)}>
-                                                        📄 Report
-                                                    </button>
-                                                ) : iv.status === 'active' ? (
-                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>In progress</span>
-                                                ) : (
-                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>—</span>
-                                                )}
+                                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                                    {(iv.status === 'completed' || iv.status === 'terminated') && iv.report_id ? (
+                                                        <button className="btn btn-ghost btn-sm"
+                                                            onClick={() => onViewReport(iv.id)}>
+                                                            📄 Report
+                                                        </button>
+                                                    ) : iv.status === 'active' ? (
+                                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>In progress</span>
+                                                    ) : null}
+                                                    {(iv.status === 'setup' || iv.status === 'active') && (
+                                                        <button
+                                                            className="btn btn-ghost btn-sm"
+                                                            style={{ color: 'var(--danger)', padding: '4px 10px' }}
+                                                            onClick={() => deleteInterview(iv.id)}
+                                                            title="Delete this interview"
+                                                        >
+                                                            🗑
+                                                        </button>
+                                                    )}
+                                                    {iv.status !== 'setup' && iv.status !== 'active' && !iv.report_id && (
+                                                        <button
+                                                            className="btn btn-ghost btn-sm"
+                                                            style={{ color: 'var(--danger)', padding: '4px 10px' }}
+                                                            onClick={() => deleteInterview(iv.id)}
+                                                            title="Delete this interview"
+                                                        >
+                                                            🗑
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

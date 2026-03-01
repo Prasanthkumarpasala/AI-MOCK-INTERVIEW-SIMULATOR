@@ -27,7 +27,9 @@ export default function InterviewPage({ user, config, onFinished }) {
     const [timeLeft, setTimeLeft] = useState(duration * 60); // seconds
     const [timeWarning, setTimeWarning] = useState(false);
     const [terminated, setTerminated] = useState(false);
+    const [tabSwitchOverlay, setTabSwitchOverlay] = useState(false);
     const { showToast, ToastNode } = useToast();
+    const lastTabSwitchRef = useRef(0); // debounce timestamp
 
     // ── Refs ─────────────────────────────────────────────────────────────────
     const videoRef = useRef(null);
@@ -70,6 +72,35 @@ export default function InterviewPage({ user, config, onFinished }) {
     useEffect(() => {
         transcriptEnd.current?.scrollIntoView({ behavior: 'smooth' });
     }, [transcript]);
+
+    // ── Tab Switch / Window Blur Detection ───────────────────────────────────
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden && phase !== 'finished' && phase !== 'terminated') {
+                const now = Date.now();
+                // Debounce: ignore if less than 3s since last switch
+                if (now - lastTabSwitchRef.current < 3000) return;
+                lastTabSwitchRef.current = now;
+                setTabSwitchOverlay(true);
+                triggerWarning('tab_switch');
+            }
+        };
+        const handleWindowBlur = () => {
+            if (phase !== 'finished' && phase !== 'terminated') {
+                const now = Date.now();
+                if (now - lastTabSwitchRef.current < 3000) return;
+                lastTabSwitchRef.current = now;
+                setTabSwitchOverlay(true);
+                triggerWarning('window_blur');
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('blur', handleWindowBlur);
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('blur', handleWindowBlur);
+        };
+    }, [phase, triggerWarning]);
 
     // ── WebSocket Proctoring ─────────────────────────────────────────────────
     useEffect(() => {
@@ -131,8 +162,7 @@ export default function InterviewPage({ user, config, onFinished }) {
     };
 
     // ── Warning Logic ─────────────────────────────────────────────────────────
-    const triggerWarning = useCallback(async () => {
-        // Debounce: only increment if not too recent
+    const triggerWarning = useCallback(async (reason = 'proctoring') => {
         const newCount = warningRef.current + 1;
         warningRef.current = newCount;
         setWarnings(newCount);
@@ -145,11 +175,22 @@ export default function InterviewPage({ user, config, onFinished }) {
             );
             if (res.data.terminate) {
                 handleTerminate('proctoring_violation');
+                return;
             }
         } catch (e) { }
 
-        if (newCount === 1) showToast('⚠️ Warning 1/3: Sit straight, face the camera!', 'warning');
-        if (newCount === 2) showToast('⚠️ Warning 2/3: Last warning before termination!', 'warning');
+        if (reason === 'tab_switch' || reason === 'window_blur') {
+            if (newCount === 1) showToast('⚠️ Warning 1/3: Tab switching is not allowed!', 'warning');
+            else if (newCount === 2) showToast('⚠️ Warning 2/3: One more violation = termination!', 'warning');
+            else showToast('🚫 Interview terminated — tab switching violations!', 'error');
+        } else {
+            if (newCount === 1) showToast('⚠️ Warning 1/3: Sit straight, face the camera!', 'warning');
+            else if (newCount === 2) showToast('⚠️ Warning 2/3: Last warning before termination!', 'warning');
+        }
+
+        if (newCount >= 3) {
+            handleTerminate('proctoring_violation');
+        }
     }, [interviewId]);
 
     // ── Terminate ─────────────────────────────────────────────────────────────
@@ -264,7 +305,7 @@ export default function InterviewPage({ user, config, onFinished }) {
                         <div className="termination-msg">
                             Your interview was automatically terminated due to <strong>3 proctoring violations</strong>.
                             <br /><br />
-                            Please ensure you're in a quiet environment, facing forward, and only one person is visible in the camera.
+                            Violations include: tab switching, window switching, no face detected, multiple people visible, or looking away from camera.
                         </div>
                         <button className="btn btn-primary" onClick={() => onFinished(interviewId)}>
                             📄 View Report
@@ -278,6 +319,34 @@ export default function InterviewPage({ user, config, onFinished }) {
 
     return (
         <div className="app-wrapper">
+            {/* Tab Switch Warning Overlay */}
+            {tabSwitchOverlay && !terminated && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 9999,
+                    background: 'rgba(239,68,68,0.97)',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    gap: 16, textAlign: 'center', padding: 32,
+                    animation: 'fadeIn 0.2s ease'
+                }}>
+                    <div style={{ fontSize: '4rem' }}>🚨</div>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#fff' }}>
+                        Tab Switching Detected!
+                    </div>
+                    <div style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.9)', maxWidth: 480 }}>
+                        You switched away from the interview window.<br />
+                        This counts as a <strong>proctoring violation</strong>.<br />
+                        You have <strong style={{ fontSize: '1.3em' }}>{3 - warnings} warning(s) left</strong> before termination.
+                    </div>
+                    <button
+                        className="btn"
+                        style={{ background: '#fff', color: '#ef4444', fontWeight: 700, marginTop: 8 }}
+                        onClick={() => setTabSwitchOverlay(false)}
+                    >
+                        ✅ Return to Interview
+                    </button>
+                </div>
+            )}
             {/* Interview Header */}
             <header className="interview-header">
                 <div className="logo">

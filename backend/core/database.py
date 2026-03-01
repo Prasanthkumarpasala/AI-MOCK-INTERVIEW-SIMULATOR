@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS interview_reports (
 
 
 def init_db():
-    conn = sqlite3.connect(settings.DB_PATH)
+    conn = sqlite3.connect(settings.DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
     c = conn.cursor()
     c.execute(CREATE_USERS)
     c.execute(CREATE_INTERVIEWS)
@@ -74,8 +75,11 @@ def init_db():
 
 
 def get_db():
-    conn = sqlite3.connect(settings.DB_PATH)
+    """Each request gets its own SQLite connection — thread safe."""
+    conn = sqlite3.connect(settings.DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")  # WAL allows concurrent reads+writes
+    conn.execute("PRAGMA foreign_keys=ON")
     try:
         yield conn
     finally:

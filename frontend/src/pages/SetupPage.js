@@ -25,7 +25,16 @@ export default function SetupPage({ user, onBack, onStarted }) {
     const [resumeFile, setResumeFile] = useState(null);
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState(1); // 1 = config, 2 = uploading
+    const [loadingStep, setLoadingStep] = useState(0); // 0..3 for progress
     const { showToast, ToastNode } = useToast();
+
+    const LOADING_STEPS = [
+        { icon: '📤', label: 'Uploading your resume...' },
+        { icon: '🔍', label: 'Extracting resume content...' },
+        { icon: '🧠', label: 'Building AI context with RAG...' },
+        { icon: '🤖', label: 'Preparing your AI interviewer...' },
+        { icon: '✅', label: 'Starting interview session!' },
+    ];
 
     const toggleSkill = (skill) => {
         setSkills(prev =>
@@ -47,9 +56,11 @@ export default function SetupPage({ user, onBack, onStarted }) {
 
         setLoading(true);
         setStep(2);
+        setLoadingStep(0);
 
         try {
-            // Create interview
+            // Step 0: Create interview
+            setLoadingStep(0);
             const setupRes = await axios.post(
                 `${API_BASE}/api/interview/setup`,
                 { duration_minutes: duration, interview_type: type, skills: skills.join(', ') },
@@ -57,15 +68,25 @@ export default function SetupPage({ user, onBack, onStarted }) {
             );
             const interviewId = setupRes.data.interview_id;
 
-            // Upload resume + start
+            // Step 1: Upload resume
+            setLoadingStep(1);
             const formData = new FormData();
             formData.append('file', resumeFile);
+
+            // Step 2-3: fake progress during slow API call
+            const progressTimer = setInterval(() => {
+                setLoadingStep(prev => prev < 3 ? prev + 1 : prev);
+            }, 2500);
+
             const startRes = await axios.post(
                 `${API_BASE}/api/interview/start/${interviewId}`,
                 formData,
                 { headers: { ...authHeaders() } }
             );
+            clearInterval(progressTimer);
+            setLoadingStep(4); // Done!
 
+            await new Promise(r => setTimeout(r, 600));
             showToast('Interview started!', 'success');
             onStarted({
                 interviewId,
@@ -80,6 +101,7 @@ export default function SetupPage({ user, onBack, onStarted }) {
             showToast(err.response?.data?.detail || 'Failed to start. Is the backend running?', 'error');
             setLoading(false);
             setStep(1);
+            setLoadingStep(0);
         }
     };
 
@@ -102,13 +124,43 @@ export default function SetupPage({ user, onBack, onStarted }) {
             <div className="setup-page">
                 <div className="setup-card">
                     {step === 2 ? (
-                        <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                            <Spinner large />
-                            <div style={{ marginTop: 20, fontSize: '1rem', color: 'var(--text-secondary)' }}>
-                                Analyzing your resume and preparing interview...
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                            <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>🤖</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 24 }}>
+                                Preparing Your Interview...
                             </div>
-                            <div style={{ marginTop: 8, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                This may take a moment
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left', maxWidth: 340, margin: '0 auto 24px' }}>
+                                {LOADING_STEPS.map((s, i) => (
+                                    <div key={i} style={{
+                                        display: 'flex', alignItems: 'center', gap: 12,
+                                        padding: '10px 14px',
+                                        borderRadius: 10,
+                                        background: i === loadingStep
+                                            ? 'rgba(99,102,241,0.15)'
+                                            : i < loadingStep ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)',
+                                        border: `1px solid ${i === loadingStep ? 'rgba(99,102,241,0.4)' : i < loadingStep ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'}`,
+                                        transition: 'all 0.3s ease',
+                                        opacity: i > loadingStep ? 0.4 : 1,
+                                    }}>
+                                        <span style={{ fontSize: '1.3rem', minWidth: 28 }}>
+                                            {i < loadingStep ? '✅' : i === loadingStep ? s.icon : '⏳'}
+                                        </span>
+                                        <span style={{
+                                            fontSize: '0.85rem', fontWeight: i === loadingStep ? 600 : 400,
+                                            color: i === loadingStep ? 'var(--accent-light)' : i < loadingStep ? 'var(--success)' : 'var(--text-muted)'
+                                        }}>
+                                            {s.label}
+                                        </span>
+                                        {i === loadingStep && (
+                                            <div style={{ marginLeft: 'auto' }}>
+                                                <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                ⏳ First run may take 30–60s while AI models load. Subsequent runs are faster.
                             </div>
                         </div>
                     ) : (
